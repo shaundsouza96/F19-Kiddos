@@ -1,0 +1,72 @@
+SELECT predictionweek
+    , modelversion
+    , BclgID
+    , soid
+    , mkcid
+    , clid
+    , DifferentiatedConsolidatedSKU
+    , sku_age
+    , Has_Prediction
+    , quintile
+    , actual_quintile
+    , Top_15_Percentile
+    , Actual_Top_15_Percentile
+    , Top_10_Percentile
+    , Actual_Top_10_Percentile
+    , Top_5_Percentile
+    , Actual_Top_5_Percentile
+    , Top_1_Percentile
+    , Actual_Top_1_Percentile
+    , Quintile_Class_Level
+    , Actual_Quintile_Class_Level
+    , Top_15_Percentile_Class_Level
+    , Actual_Top_15_Percentile_Class_Level
+    , Top_10_Percentile_Class_Level
+    , Actual_Top_10_Percentile_Class_Level
+    , Top_5_Percentile_Class_Level
+    , Actual_Top_5_Percentile_Class_Level
+    , Top_1_Percentile_Class_Level
+    , Actual_Top_1_Percentile_Class_Level
+    , Sales_Window
+    , Sales_Window_Finished
+    , COUNT (*) 
+FROM `wf-gcp-us-ae-merch-prod.dsa_reporting.tbl_pw_continuous_winners_model_report` 
+GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13, 14,15, 16, 17, 18, 19, 20, 21, 22,23,24,25,26,27,28,29,30,31
+HAVING COUNT (*) > 1
+ORDER BY predictionweek DESC
+; 
+
+SELECT * 
+FROM `wf-gcp-us-ae-merch-prod.dsa_reporting.tbl_pw_continuous_winners_model_report` 
+WHERE 
+predictionweek = '2021-09-12'
+AND modelversion = 'v0'
+AND BclgID = 2
+    AND soid = 321
+    AND mkcid = 42
+    AND clid = 1224
+    AND DifferentiatedConsolidatedSKU = true
+    AND sku_age = '90D'
+    AND Has_Prediction = true
+    AND quintile = 'Quintile 5'
+    AND actual_quintile = 'Quintile 1'
+    AND Top_15_Percentile = true
+    AND Actual_Top_15_Percentile = false
+    AND Top_10_Percentile = true
+    AND Actual_Top_10_Percentile = false
+    AND Top_5_Percentile = true
+    AND Actual_Top_5_Percentile = false
+    AND Top_1_Percentile = false
+    AND Actual_Top_1_Percentile = false
+    AND Quintile_Class_Level = 'Quintile 5'
+    AND Actual_Quintile_Class_Level = 'Quintile 1'
+    AND Top_15_Percentile_Class_Level = true 
+    AND Actual_Top_15_Percentile_Class_Level = false
+    AND Top_10_Percentile_Class_Level = true
+    AND Actual_Top_10_Percentile_Class_Level = false
+    AND Top_5_Percentile_Class_Level = false
+    AND Actual_Top_5_Percentile_Class_Level = false
+    AND Top_1_Percentile_Class_Level = false
+    AND Actual_Top_1_Percentile_Class_Level = false
+    AND Sales_Window = 270
+    AND Sales_Window_Finished = true

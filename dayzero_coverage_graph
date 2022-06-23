@@ -1,0 +1,40 @@
+WITH total as (
+  SELECT FirstActiveweek
+    , SUM (SKUCount) as sku_count
+FROM `wf-gcp-us-ae-merch-prod.dsa_reporting.tbl_pw_day_zero_model_report`
+WHERE DayZeroSupportedClID = 1
+-- AND HasDayZeroPrediction = 1
+GROUP BY 1
+)
+
+, hasdayzeroprediction as (
+SELECT FirstActiveweek
+    , SUM (SKUCount) haspredictionskucount
+FROM `wf-gcp-us-ae-merch-prod.dsa_reporting.tbl_pw_day_zero_model_report`
+WHERE DayZeroSupportedClID = 1
+AND HasDayZeroPrediction = 1
+AND MeetTimeSLA = true
+GROUP BY 1 
+)
+
+, nodayzeroprediction as (
+SELECT FirstActiveweek
+    , SUM (skuwith) nopredictionskucount
+FROM `wf-gcp-us-ae-merch-prod.dsa_reporting.tbl_pw_day_zero_model_report`
+WHERE DayZeroSupportedClID = 1
+AND HasDayZeroPrediction = 0
+AND MeetTimeSLA = true
+GROUP BY 1 
+) 
+-- LIMIT 10
+
+SELECT a.*
+    , b.haspredictionskucount
+    , c.nopredictionskucount
+    , SAFE_DIVIDE(b.haspredictionskucount, a.sku_Count) as coverage_rate
+FROM total a
+LEFT JOIN hasdayzeroprediction b
+  ON b.firstactiveweek = a.firstactiveweek
+LEFT JOIN nodayzeroprediction c
+  ON c.firstactiveweek = a.firstactiveweek
+ORDER BY 1 DESC

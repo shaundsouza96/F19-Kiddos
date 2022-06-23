@@ -1,0 +1,94 @@
+-- Get the feature vector info
+CREATE OR REPLACE TEMPORARY TABLE tmp_d0_input
+CLUSTER BY soid, clid AS
+WITH d0_input AS
+(
+SELECT  f.pw_scoring_id
+        , f.ireid
+        , f.piid 
+        , f.avg_sku_wholesaleprice        
+        , SUM(CASE WHEN vse_embedding_unnest IS NOT NULL THEN 1 ELSE 0 END) AS vse_embedding_count
+FROM    `wf-gcp-us-ae-predwin-prod.predicted_winners.predicted_winners_feature_vector_modelversion_1_6_n` AS f
+LEFT JOIN UNNEST(f.vse_embedding) AS vse_embedding_unnest
+GROUP BY 1, 2, 3, 4
+)
+-- Add the feature vector info to our prediction data log
+, d0_score_input AS
+(
+SELECT  pwas.pw_scoring_id
+        , pwas.soid
+        , pwas.prsku
+        , pwas.clid
+        , pwas.first_active_online_date
+        , pwas.scoring_timestamp
+        , pwas.pw_score
+        , pwas.has_feature_vector
+        , pwas.omit
+        , i.ireid
+        , i.piid
+        , i.avg_sku_wholesaleprice
+        -- Note: As each PiID will have 512 VSE embeddings, we only need to know if a pw_scoring_id has VSE embedding or not 
+        , CASE WHEN i.vse_embedding_count > 0 THEN 1 ELSE 0 END AS has_vse_embedding
+FROM    `wf-gcp-us-ae-predwin-prod.predicted_winners.predicted_winners_atomic_scores` AS pwas
+JOIN   d0_input AS i ON pwas.pw_scoring_id = i.pw_scoring_id
+WHERE   pwas.pw_full_model_version = '1.6.n'
+)
+-- Aggregate the data to get SKU level prediction and input data info
+SELECT  soid
+        , prsku
+        , clid
+        , first_active_online_date
+        , omit
+        , SUM(CASE WHEN has_feature_vector = TRUE THEN 1 ELSE 0 END) AS has_feature_vector -- any vaue > 0 means the SKU has full feature_vector
+        , COUNT(DISTINCT (CASE WHEN ireid = -1 THEN NULL ELSE ireid END)) AS ireid_count -- Any value > 0 means the SKU has IreID
+        , COUNT(DISTINCT (CASE WHEN piid = -1 THEN NULL ELSE piid END)) AS piid_count -- Any value > 0 means the SKU has PiID 
+        , AVG(avg_sku_wholesaleprice) AS avg_sku_wsc -- Any value <> NULL means the SKU has Avg WSC input
+        , SUM(has_vse_embedding) AS has_vse_embedding -- Any value > 0 means the SKU has VSE Embeddings
+FROM    d0_score_input
+-- WHERE   prsku IN ('ALEQ1104', 'AAAI1000', 'AAD10878', 'AABP2450')
+GROUP BY 1, 2, 3, 4, 5
+; 
+
+
+-- Get list of visual duplicate SKUs
+CREATE OR REPLACE TEMPORARY TABLE tmp_visual_duplicates
+CLUSTER BY soid AS
+select  DISTINCT
+        CASE    WHEN clgid = 1 THEN 49
+                WHEN clgid = 2 THEN 321
+                WHEN clgid = 3 THEN 368
+        END AS SoID
+        , sku
+FROM    `wf-gcp-us-ae-matchingops-prod.deduplication.tbl_visual_duplicate_report`
+WHERE   liveprimaryimagematchflag = 1
+;
+
+
+SELECT  b.SoID
+        , b.ClID
+        , b.ClName
+        , b.ConsolidatedSKU
+        , b.FirstActiveDate
+        , CASE WHEN vd.sku IS NOT NULL THEN TRUE ELSE FALSE END AS visual_duplicate_flag
+        , b.ConsolidatedSKUCurrentActiveDSFlag
+        , CASE  WHEN i.prsku IS NULL THEN 'Not in pipeline'
+                WHEN i.has_feature_vector = 0 THEN 'Miss feature'
+                ELSE 'Has feature'
+        END AS Input_Status
+        , i.omit
+        , CASE WHEN ireid_count > 0 THEN TRUE ELSE FALSE END AS has_ireid
+        , CASE WHEN piid_count > 0 THEN TRUE ELSE FALSE END AS has_piid
+        , CASE WHEN avg_sku_wsc IS NOT NULL THEN TRUE ELSE FALSE END AS has_wsc
+        , CASE WHEN has_vse_embedding > 0 THEN TRUE ELSE FALSE END AS has_vse_embedding
+FROM    `wf-gcp-us-ae-merch-prod.dsa_reporting.tbl_pw_day_zero_model_sku_data` AS b -- 
+LEFT JOIN   tmp_d0_input AS i ON b.soid = i.soid AND b.ConsolidatedSKU = i.prsku
+LEFT JOIN   tmp_visual_duplicates AS vd ON b.SoID = vd.SoID AND b.ConsolidatedSKU = vd.sku     
+WHERE   (b.FirstActiveDate BETWEEN '2022-06-06' AND '2022-06-12')
+        AND b.ModelVersion = 'v1'
+        AND b.DayZeroSupportedClID = 1
+        AND b.HasDayZeroPrediction = 0
+        -- AND b.SoID = 49
+        AND b.SalesWindow = 90
+        AND ConsolidatedSKUStoreAssociationActive = TRUE
+ORDER BY ConsolidatedSKU
+;

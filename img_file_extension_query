@@ -1,0 +1,27 @@
+WITH sku_ireid AS (
+  SELECT DISTINCT IrpPrSKU PrSKU, IrpIreID IreID
+  FROM `wf-gcp-us-ae-sql-data-prod.elt_product.tbl_join_image_resource_product`
+  UNION DISTINCT
+  SELECT DISTINCT IroPrSKU PrSKU, IroIreID IreID
+  FROM `wf-gcp-us-ae-sql-data-prod.elt_product.tbl_join_image_resource_product_option_grid_file_group`
+)
+SELECT COUNT(DISTINCT sku_ireid.IreID) IreIDCount, IraFileExtension
+FROM sku_ireid
+JOIN `wf-gcp-us-ae-sql-data-prod.elt_product.tbl_image_resource` ire
+USING (IreID)
+JOIN `wf-gcp-us-ae-sql-data-prod.elt_product.tbl_image_raw` ira
+ON IreIraID=IraID
+LEFT JOIN `wf-gcp-us-ae-simplats-prod.embeddings.tbl_visual_similarity_embeddings` emb
+ON sku_ireid.IreID=emb.ireid AND emb.model_version="6"
+WHERE 
+  1=1
+  AND PrSKU IN (
+    "AAVZ1000","AFGT1729","AYBE1004","AYBE1008","BBIN1302","BBIN1985","BBIN1986","BBIN1987",
+    "BBIN1988","BBIN1989","BLEY2786","BLEY3214","CNEA2257","CNEA2259","CNEA2260","CNEA2261",
+    "CNEA2262","CNEA2263","CNEA2268","CNEA2269","CNEA2270","CNEA2271","CNEA2272","CNEA2274",
+    "CNEA2275","CNEA2277","CNEA2278","CNEA2279","CNEA2280","CNEA2282","CNEA2283","CNEA2315",
+    "CNEA2558","CSWY6768","CSWY6770","MSPD9455","OTLS1053","PXQW1080","SGRE3702","SGRE3798",
+    "SGRE4218","SGRE4240","SGRE4271"
+  ) 
+  AND emb.ireid IS NULL
+GROUP BY IraFileExtension
